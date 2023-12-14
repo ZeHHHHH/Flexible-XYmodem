@@ -5,6 +5,7 @@
  * @since       Change Logs:
  * Date         Author       Notes
  * 2023-11-30   lzh          the first version
+ * 2023-12-10   lzh          add macro __XYM_LOG__() 
  * @copyright (c) 2023 lzh <lzhoran@163.com>
  *                https://github.com/ZeHHHHH/Flexible-XYmodem.git
  * All rights reserved.
@@ -42,6 +43,12 @@
 # define ATTRIBUTE_FAST_MEM       /* recommend [Stack Min_Size] >= 0x800 */
 #else /* Static allocation on RAM */
 # define ATTRIBUTE_FAST_MEM       static
+#endif
+
+#if 1 /* log printf */
+# define __XYM_LOG__(...)      printf(__VA_ARGS__)
+#else 
+# define __XYM_LOG__(...)      
 #endif
 
 /*******************************************************************************************************************************************
@@ -167,9 +174,10 @@ extern xym_sta_t xymodem_port_crc16(const uint8_t *data, const uint32_t cnt);
     
     if (XYM_OK != xymodem_port_init())
     {
-        printf("X / Y modem hardware init error, please check [port_init]!\r\n");
+        __XYM_LOG__("X / Y modem hardware init error, please check [port_init]!\r\n");
         return 1;
     }
+    __XYM_LOG__("X / Y modem example test!\r\n");
 
     /* session init */
     xymodem_session_init(&session,
@@ -177,8 +185,8 @@ extern xym_sta_t xymodem_port_crc16(const uint8_t *data, const uint32_t cnt);
                         1000, 1000, 10);
 
 Xmodem_Receiver:
-#if (EXAMPLE_CONFIG & X_MODEM && EXAMPLE_CONFIG & RECEIVER)
-    printf("X modem receive start, size = [%d]\r\n", xmodem_size);
+#if (EXAMPLE_CONFIG & (X_MODEM | RECEIVER))
+    __XYM_LOG__("X modem receive start, size = [%d]\r\n", xmodem_size);
     for (xmodem_init(&session); res_sta == XYM_OK; cnt += len)
     {
         res_sta = xmodem_receive(&session, buff, &len);
@@ -198,8 +206,8 @@ Xmodem_Receiver:
 #endif
 
 Xmodem_Sender:
-#if (EXAMPLE_CONFIG & X_MODEM && EXAMPLE_CONFIG & SENDER)
-    printf("X modem send start, size = [%d]\r\n", xmodem_size);
+#if (EXAMPLE_CONFIG & (X_MODEM | SENDER))
+    __XYM_LOG__("X modem send start, size = [%d]\r\n", xmodem_size);
     for (xmodem_init(&session); res_sta == XYM_OK; cnt += len)
     {
         len = (xmodem_size - cnt > sizeof(buff) / sizeof(buff[0])) ? (sizeof(buff) / sizeof(buff[0])) : (xmodem_size - cnt);
@@ -213,8 +221,8 @@ Xmodem_Sender:
 #endif
     
 Ymodem_Receiver:
-#if (EXAMPLE_CONFIG & Y_MODEM && EXAMPLE_CONFIG & RECEIVER)
-    printf("Y modem receive start!\r\n");
+#if (EXAMPLE_CONFIG & (Y_MODEM | RECEIVER))
+    __XYM_LOG__("Y modem receive start!\r\n");
     file_num = 0;
     for (ymodem_init(&session); res_sta == XYM_OK; cnt += len)
     {
@@ -225,7 +233,7 @@ Ymodem_Receiver:
             /* get a new file struct(custom) */
             decode_file(&file_p[file_num], buff, len);
 			
-			//++file_num;
+            //++file_num;
 
             /* If you are using a file system, 
              * you need to use a file name to open the corresponding file operation handle
@@ -254,8 +262,8 @@ Ymodem_Receiver:
 #endif
 
 Ymodem_Sender: 
-#if (EXAMPLE_CONFIG & Y_MODEM && EXAMPLE_CONFIG & SENDER)
-    printf("Y modem send start, file_num = [%d], size = [%d]\r\n", file_num, file_p[file_num].size);
+#if (EXAMPLE_CONFIG & (Y_MODEM | SENDER))
+    __XYM_LOG__("Y modem send start, file_num = [%d], size = [%d]\r\n", file_num, file_p[file_num].size);
 	file_num = 0;
     for (ymodem_init(&session); res_sta == XYM_OK; cnt += len)
     {
@@ -298,9 +306,9 @@ Ymodem_Sender:
 Session_End:
     if (res_sta != XYM_END)
     {
-        printf("X / Y modem session error termination, error code[%d]!\r\n", res_sta);
+        __XYM_LOG__("X / Y modem session error termination, error code[%d]!\r\n", res_sta);
         return res_sta;
     }
-    printf("X / Y modem session normal end!\r\n");
+    __XYM_LOG__("X / Y modem session normal end!\r\n");
     return 0;
 }

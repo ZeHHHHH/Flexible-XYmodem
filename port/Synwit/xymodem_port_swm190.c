@@ -221,6 +221,7 @@ void UART_GROUP_X_ISR_FUN(void)
 		{
 			if(UART_ReadByte(UART_GROUP_X, &chr) == 0)
 			{
+                /* Circular-Queue */
 				UART_RX_Buffer[UART_Count_Index][UART_Size_Index] = chr;
                 if (++UART_Size_Index >= UART_RX_SIZE)
                 {

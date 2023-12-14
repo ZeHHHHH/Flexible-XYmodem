@@ -5,6 +5,8 @@
  * @since       Change Logs:
  * Date         Author       Notes
  * 2023-11-30   lzh          the first version
+ * 2023-12-10   lzh          Fix possible dead loops in EOT response of [ymodem_transmit]
+ * 2023-12-14   lzh          sync-change [retry_max] uint32_t => uint8_t, update enum xym_sta: add [XYM_ERROR_INVALID_DATA], del [XYM_ERROR_UNKNOWN]
  * @copyright (c) 2023 lzh <lzhoran@163.com>
  *                https://github.com/ZeHHHHH/Flexible-XYmodem.git
  * All rights reserved.
@@ -33,16 +35,16 @@
 /** enum X/Y modem session state */
 typedef enum xym_sta
 {
-    XYM_OK = 0,        /**< normal return */
-    XYM_END,           /**< protocol exit */
-    XYM_FIL_GET,       /**< ymodem file info packet get */
-    XYM_FIL_SET,       /**< ymodem file info packet set */
-    XYM_CANCEL_REMOTE, /**< remote cancel */
-    XYM_CANCEL_ACTIVE, /**< active cancel */
-    XYM_ERROR_TIMEOUT, /**< communication timeout */
-    XYM_ERROR_RETRANS, /**< retrans over max-times */
-    XYM_ERROR_HW,      /**< hardware error */
-    XYM_ERROR_UNKNOWN, /**< unknown error */
+    XYM_OK = 0,             /**< normal return */
+    XYM_END,                /**< protocol exit */
+    XYM_FIL_GET,            /**< ymodem file info packet get */
+    XYM_FIL_SET,            /**< ymodem file info packet set */
+    XYM_CANCEL_REMOTE,      /**< remote cancel */
+    XYM_CANCEL_ACTIVE,      /**< active cancel */
+    XYM_ERROR_TIMEOUT,      /**< communication timeout */
+    XYM_ERROR_RETRANS,      /**< retrans over max-times */
+    XYM_ERROR_INVALID_DATA, /**< invalid data */
+    XYM_ERROR_HW,           /**< hardware error */
 } xym_sta_t;
 
 /**
@@ -98,7 +100,7 @@ typedef struct xym_session
  * @param  How many times to retry when an error occurs
  * @retval enum xym_sta
  */
-xym_sta_t xymodem_session_init(xym_session_t *p, 
+xym_sta_t xymodem_session_init(xym_session_t *p,
                                xym_cb_send *send, xym_cb_recv *recv, xym_cb_crc16 *crc16,
                                uint32_t send_timeout, uint32_t recv_timeout, uint8_t error_max_retry);
 

@@ -5,6 +5,8 @@
  * @since       Change Logs:
  * Date         Author       Notes
  * 2023-11-30   lzh          the first version
+ * 2023-12-10   lzh          Fix possible dead loops in EOT response of [ymodem_transmit]
+ * 2023-12-14   lzh          sync-change [retry_max] uint32_t => uint8_t, update enum xym_sta: add [XYM_ERROR_INVALID_DATA], del [XYM_ERROR_UNKNOWN]
  * @copyright (c) 2023 lzh <lzhoran@163.com>
  *                https://github.com/ZeHHHHH/Flexible-XYmodem.git
  * All rights reserved.
@@ -60,7 +62,7 @@ xym_sta_t xymodem_session_init(xym_session_t *p,
 {
     if (!(p && send && recv))
     {
-        return XYM_ERROR_UNKNOWN;
+        return XYM_ERROR_INVALID_DATA;
     }
     p->send = send;
     p->recv = recv;
@@ -80,15 +82,16 @@ xym_sta_t xymodem_session_init(xym_session_t *p,
 xym_sta_t xymodem_active_cancel(xym_session_t *p)
 {
     uint8_t cancel_singal_cnt = 3; /* third time lucky */
+    uint8_t retry = 0;
     const uint8_t reply_msg = CANCEL;
-    for (; cancel_singal_cnt > 0; --cancel_singal_cnt)
+    for (retry = 0; retry <= p->error_max_retry && cancel_singal_cnt > 0; --cancel_singal_cnt)
     {
         if (XYM_OK != p->send(&reply_msg, 1, p->send_timeout))
         {
-            return XYM_ERROR_HW;
+            ++retry;
         }
     }
-    return XYM_CANCEL_ACTIVE;
+    return (retry <= p->error_max_retry) ? XYM_CANCEL_ACTIVE : XYM_ERROR_HW;
 }
 
 /**
@@ -118,7 +121,7 @@ xym_sta_t xmodem_receive(xym_session_t *p, uint8_t *buff, uint16_t *size)
 {
     uint8_t header[3] = {0};    /* header[Special byte, Packet sequence, ~Packet sequence] */
     uint8_t tail[2] = {0};      /* tail[CheckSum / CRC16_H, Reserve / CRC16_L] */
-    uint32_t retry = 0;         /* retry counter */
+    uint8_t retry = 0;          /* retry counter */
     uint16_t pkt_data_size = 0; /* the valid data length of packet */
     uint8_t handshake_flag = 0; /* two handshakes(CRC16 or CheckSum) */
 
@@ -169,7 +172,7 @@ xym_sta_t xmodem_receive(xym_session_t *p, uint8_t *buff, uint16_t *size)
             }
         default:
             xymodem_active_cancel(p);
-            return XYM_ERROR_UNKNOWN;
+            return XYM_ERROR_INVALID_DATA;
         }
         /* get packet sequence */
         if (XYM_OK != p->recv(&header[1], 2, p->recv_timeout))
@@ -231,7 +234,7 @@ xym_sta_t xmodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
 {
     uint8_t header[3] = {0};    /* header[Special byte, Packet sequence, ~Packet sequence] */
     uint8_t tail[2] = {0};      /* tail[CheckSum / CRC16_H, Reserve / CRC16_L] */
-    uint32_t retry = 0;         /* retry counter */
+    uint8_t retry = 0;          /* retry counter */
     uint16_t pkt_data_size = 0; /* the data length of packet */
     uint16_t check_sum = 0;     /* check sum or CRC16 result */
 
@@ -288,7 +291,7 @@ xym_sta_t xmodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
         case ACK:
         default:
             xymodem_active_cancel(p);
-            return XYM_ERROR_UNKNOWN;
+            return XYM_ERROR_INVALID_DATA;
         }
     }
     if (retry > p->error_max_retry)
@@ -317,17 +320,17 @@ xym_sta_t xmodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
         /* send header */
         if (XYM_OK != p->send(header, sizeof(header) / sizeof(header[0]), p->send_timeout))
         {
-            return XYM_ERROR_HW;
+            continue;
         }
         /* send valid data */
         if (XYM_OK != p->send(buff, pkt_data_size, p->send_timeout))
         {
-            return XYM_ERROR_HW;
+            continue;
         }
         /* send checksum */
         if (XYM_OK != p->send(tail, (p->crc_flag != 0) ? 2 : 1, p->send_timeout))
         {
-            return XYM_ERROR_HW;
+            continue;
         }
         /* wait reply */
         if (XYM_OK != p->recv(&p->reply_msg, 1, p->recv_timeout))
@@ -353,7 +356,7 @@ xym_sta_t xmodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
             }
         default:
             xymodem_active_cancel(p);
-            return XYM_ERROR_UNKNOWN;
+            return XYM_ERROR_INVALID_DATA;
         }
     }
     xymodem_active_cancel(p);
@@ -388,7 +391,7 @@ xym_sta_t ymodem_receive(xym_session_t *p, uint8_t *buff, uint16_t *size)
 {
     uint8_t header[3] = {0};    /* header[Special byte, Packet sequence, ~Packet sequence] */
     uint8_t tail[2] = {0};      /* tail[CRC16_H, CRC16_L] */
-    uint32_t retry = 0;         /* retry counter */
+    uint8_t retry = 0;          /* retry counter */
     uint16_t pkt_data_size = 0; /* the valid data length of packet */
     uint8_t eot_flag = 0;       /* wave twice */
     uint8_t continue_reply = 0; /* continue reply flag */
@@ -450,7 +453,7 @@ xym_sta_t ymodem_receive(xym_session_t *p, uint8_t *buff, uint16_t *size)
             }
         default:
             xymodem_active_cancel(p);
-            return XYM_ERROR_UNKNOWN;
+            return XYM_ERROR_INVALID_DATA;
         }
         /* get packet sequence */
         if (XYM_OK != p->recv(&header[1], 2, p->recv_timeout))
@@ -526,7 +529,7 @@ xym_sta_t ymodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
 {
     uint8_t header[3] = {0};    /* header[Special byte, Packet sequence, ~Packet sequence] */
     uint8_t tail[2] = {0};      /* tail[CheckSum / CRC16_H, Reserve / CRC16_L] */
-    uint32_t retry = 0;         /* retry counter */
+    uint8_t retry = 0;          /* retry counter */
     uint16_t pkt_data_size = 0; /* the data length of packet */
     uint8_t eot_flag = 0;       /* wave twice */
     uint16_t check_sum = 0;     /* check sum or CRC16 result */
@@ -540,16 +543,24 @@ xym_sta_t ymodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
         {
             if (XYM_OK != p->send(header, 1, p->send_timeout))
             {
+                if (eot_flag > 0)
+                {
+                    ++eot_flag;
+                }
                 continue;
             }
             /* wait ACK */
             if (XYM_OK != p->recv(&p->reply_msg, 1, p->recv_timeout))
             {
+                if (eot_flag > 0)
+                {
+                    ++eot_flag;
+                }
                 continue;
             }
             if (p->reply_msg == NAK)
             {
-                ++eot_flag; /* eot_flag == 0 is true, eot_flag > 0 is an error */
+                ++eot_flag; /* When this is the first EOT, eot_flag == 0 is true, eot_flag > 0 is an error */
                 continue;
             }
             if (p->reply_msg == ACK)
@@ -594,7 +605,7 @@ xym_sta_t ymodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
         case ACK:
         default:
             xymodem_active_cancel(p);
-            return XYM_ERROR_UNKNOWN;
+            return XYM_ERROR_INVALID_DATA;
         }
     }
     if (retry > p->error_max_retry)
@@ -623,17 +634,17 @@ xym_sta_t ymodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
         /* send header */
         if (XYM_OK != p->send(header, sizeof(header) / sizeof(header[0]), p->send_timeout))
         {
-            return XYM_ERROR_HW;
+            continue;
         }
         /* send valid data */
         if (XYM_OK != p->send(buff, pkt_data_size, p->send_timeout))
         {
-            return XYM_ERROR_HW;
+            continue;
         }
         /* send checksum */
         if (XYM_OK != p->send(tail, (p->crc_flag != 0) ? 2 : 1, p->send_timeout))
         {
-            return XYM_ERROR_HW;
+            continue;
         }
         /* wait reply */
         if (XYM_OK != p->recv(&p->reply_msg, 1, p->recv_timeout))
@@ -663,7 +674,7 @@ xym_sta_t ymodem_transmit(xym_session_t *p, uint8_t *buff, const uint16_t size)
             }
         default:
             xymodem_active_cancel(p);
-            return XYM_ERROR_UNKNOWN;
+            return XYM_ERROR_INVALID_DATA;
         }
     }
     xymodem_active_cancel(p);

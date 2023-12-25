@@ -1,20 +1,20 @@
 /**
  *******************************************************************************************************************************************
  * @file        xymodem_port_swm190.c
- * @brief       X / Y modem transport protocol port [SWM190] 
+ * @brief       X / Y modem transport protocol port [SWM190]
  * @since       Change Logs:
  * Date         Author       Notes
  * 2023-11-30   lzh          the first version
  * @copyright (c) 2023 lzh <lzhoran@163.com>
  *                https://github.com/ZeHHHHH/Flexible-XYmodem.git
  * All rights reserved.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,7 +25,7 @@
 #include "xymodem.h"
 
 /*******************************************************************************************************************************************
- * Reference 
+ * Reference
  *******************************************************************************************************************************************/
 #include "SWM190.h"
 
@@ -49,7 +49,7 @@
 /* UART Group X Attribute */
 #define UART_GROUP_X             UART1
 #define UART_GROUP_X_ISR_FUN     UART1_Handler
-#define UART_BAUDRATE            115200 
+#define UART_BAUDRATE            115200
 
 /* UART1 TX - E7 */
 #define UART1_TX_PORT       PORTE
@@ -104,7 +104,7 @@ uint16_t xymodem_port_crc16(const uint8_t *data, const uint32_t cnt)
 #endif
 
 /**
- * @brief  peripheral hardware init 
+ * @brief  peripheral hardware init
  * @param  \
  * @retval enum xym_sta
  */
@@ -126,7 +126,7 @@ xym_sta_t xymodem_port_init(void)
     UART_initStruct.TimeoutIEn = (DEV_MODE == MODE_ISR) ? 1 : 0;
     UART_Init(UART_GROUP_X, &UART_initStruct);
     UART_Open(UART_GROUP_X);
-    
+
 #ifdef CRC16_HW_ENABLE
     /* CRC16 hardware init */
     return XYM_ERROR_HW;
@@ -206,23 +206,23 @@ static volatile uint8_t UART_TimeOut_Flag = 0;
 
 void UART_GROUP_X_ISR_FUN(void)
 {
-	uint32_t chr = 0;
-	
-	if(UART_INTStat(UART_GROUP_X, UART_IT_RX_THR | UART_IT_RX_TOUT))
-	{
-		if(UART_INTStat(UART_GROUP_X, UART_IT_RX_TOUT))
-		{
-			UART_INTClr(UART_GROUP_X, UART_IT_RX_TOUT);
-			
+    uint32_t chr = 0;
+
+    if(UART_INTStat(UART_GROUP_X, UART_IT_RX_THR | UART_IT_RX_TOUT))
+    {
+        if(UART_INTStat(UART_GROUP_X, UART_IT_RX_TOUT))
+        {
+            UART_INTClr(UART_GROUP_X, UART_IT_RX_TOUT);
+
             /* IDLE Timeout */
-			UART_TimeOut_Flag = 1;
-		}
-		while(UART_IsRXFIFOEmpty(UART_GROUP_X) == 0)
-		{
-			if(UART_ReadByte(UART_GROUP_X, &chr) == 0)
-			{
+            UART_TimeOut_Flag = 1;
+        }
+        while(UART_IsRXFIFOEmpty(UART_GROUP_X) == 0)
+        {
+            if(UART_ReadByte(UART_GROUP_X, &chr) == 0)
+            {
                 /* Circular-Queue */
-				UART_RX_Buffer[UART_Count_Index][UART_Size_Index] = chr;
+                UART_RX_Buffer[UART_Count_Index][UART_Size_Index] = chr;
                 if (++UART_Size_Index >= UART_RX_SIZE)
                 {
                     UART_Size_Index = 0;
@@ -231,8 +231,8 @@ void UART_GROUP_X_ISR_FUN(void)
                         UART_Count_Index = 0;
                     }
                 }
-			}
-		}
-	}
+            }
+        }
+    }
 }
 #endif

@@ -1,21 +1,22 @@
 /**
  *******************************************************************************************************************************************
  * @file        xymodem_example.c
- * @brief       X / Y modem transport protocol example 
+ * @brief       X / Y modem transport protocol example
  * @since       Change Logs:
  * Date         Author       Notes
  * 2023-11-30   lzh          the first version
- * 2023-12-10   lzh          add macro __XYM_LOG__() 
+ * 2023-12-10   lzh          add macro __XYM_LOG__()
+ * 2023-12-24   lzh          update [xymodem_session_init] param
  * @copyright (c) 2023 lzh <lzhoran@163.com>
  *                https://github.com/ZeHHHHH/Flexible-XYmodem.git
  * All rights reserved.
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -47,8 +48,8 @@
 
 #if 1 /* log printf */
 # define __XYM_LOG__(...)      printf(__VA_ARGS__)
-#else 
-# define __XYM_LOG__(...)      
+#else
+# define __XYM_LOG__(...)
 #endif
 
 /*******************************************************************************************************************************************
@@ -59,7 +60,7 @@ typedef struct
 {
     uint8_t name[XYM_PKT_SIZE_128];
     uint32_t size;
-} ymodem_file_t; /* The structure supports customization, 
+} ymodem_file_t; /* The structure supports customization,
                   * but you need to write supporting encoding and decoding functions.
                   */
 /*******************************************************************************************************************************************
@@ -82,12 +83,12 @@ static size_t common_atoi(const uint8_t *str)
 
 /* 把一个无符号整数 val 参数转换至 str 所指向长度为 str_len 的字符串内, 以'\0'结尾 */
 static void common_itoa(uint8_t *str, const size_t str_len, const size_t val)
-{ 
+{
     snprintf((char *)str, str_len, "%d", val);
 }
 
 /**
- * @brief   Y modem session transmission decode file info 
+ * @brief   Y modem session transmission decode file info
  * @param   f    : file info struct
  * @param   buff : data
  * @param   size : data size / Bytes
@@ -108,7 +109,7 @@ static void decode_file(ymodem_file_t *f, uint8_t *buff, const uint16_t size)
 }
 
 /**
- * @brief   Y modem session transmission encode file info 
+ * @brief   Y modem session transmission encode file info
  * @param   f    : file info struct
  * @param   buff : data
  * @param   size : data size / Bytes
@@ -124,7 +125,7 @@ static void encode_file(ymodem_file_t *f, uint8_t *buff, const uint16_t size)
     if (i >= size)
         return ;
     buff[i++] = '\0';
-    
+
     common_itoa(&buff[i], sizeof(f->name) / sizeof(f->name[0]) - i, f->size);
 }
 
@@ -139,26 +140,26 @@ static void encode_file(ymodem_file_t *f, uint8_t *buff, const uint16_t size)
  */
 uint8_t xymodem_example(void)
 {
-    xym_sta_t res_sta = XYM_OK; 
+    xym_sta_t res_sta = XYM_OK;
     uint16_t len = 0; /* the data length of packet / Bytes */
     uint32_t cnt = 0; /* session transmission count / Bytes */
 
     /* The session control struct remains valid throughout the entire lifecycle of the session.
-     * Note: If two or more sessions exist, 
+     * Note: If two or more sessions exist,
      * their session handles must be independent of each other and cannot be shared.
      */
     ATTRIBUTE_FAST_MEM xym_session_t session;
 
-    /* Data Cache: The size depends on the sender's settings, 
+    /* Data Cache: The size depends on the sender's settings,
      * and it is recommended to set it to 1K(1024 Bytes) to prevent overflow when the sender's configuration is unknown.
      */
     ATTRIBUTE_FAST_MEM uint8_t buff[XYM_PKT_SIZE_1024];
-    
+
     /* Xmodem expected size / Bytes */
     const uint32_t xmodem_size = TEST_SIZE;
-    
+
     /* Ymodem Var */
-	ymodem_file_t file_list[3] = {
+    ymodem_file_t file_list[3] = {
         {"ymodem_test_file_0.bin", TEST_SIZE},
         {"ymodem_test_file_1.bin", TEST_SIZE},
         {"ymodem_test_file_2.bin", TEST_SIZE},
@@ -166,12 +167,12 @@ uint8_t xymodem_example(void)
     const uint32_t file_list_max_num = sizeof(file_list) / sizeof(file_list[0]);
     uint32_t file_num = 0;
     ymodem_file_t *file_p = file_list;
-    
+
 extern xym_sta_t xymodem_port_init(void);
 extern xym_sta_t xymodem_port_send_data(const uint8_t *data, const uint32_t cnt, const uint32_t tick);
 extern xym_sta_t xymodem_port_recv_data(uint8_t *data, const uint32_t cnt, const uint32_t tick);
 extern xym_sta_t xymodem_port_crc16(const uint8_t *data, const uint32_t cnt);
-    
+
     if (XYM_OK != xymodem_port_init())
     {
         __XYM_LOG__("X / Y modem hardware init error, please check [port_init]!\r\n");
@@ -180,9 +181,17 @@ extern xym_sta_t xymodem_port_crc16(const uint8_t *data, const uint32_t cnt);
     __XYM_LOG__("X / Y modem example test!\r\n");
 
     /* session init */
-    xymodem_session_init(&session,
-                        xymodem_port_send_data, xymodem_port_recv_data, NULL/* xymodem_port_crc16 */,
-                        1000, 1000, 10);
+    struct xym_ops xym_init_ops = {
+        .send = xymodem_port_send_data,
+        .recv = xymodem_port_recv_data,
+        .crc16 = NULL, //xymodem_port_crc16
+    };
+    struct xym_param xym_init_param = {
+        .send_timeout = 1000,
+        .recv_timeout = 1000,
+        .error_max_retry = 10,
+    };
+    xymodem_session_init(&session, xym_init_ops, xym_init_param);
 
 Xmodem_Receiver:
 #if (EXAMPLE_CONFIG & (X_MODEM | RECEIVER))
@@ -190,17 +199,17 @@ Xmodem_Receiver:
     for (xmodem_init(&session); res_sta == XYM_OK; cnt += len)
     {
         res_sta = xmodem_receive(&session, buff, &len);
-        /* Exceeding user's expected size */
-        if (cnt >= xmodem_size)
-        {
-            res_sta = xymodem_active_cancel(&session);
-            break;
-        }
         /* The last package exceeded the preset size,
          * the user can choose whether to intercept the excess part,
          * which is usually filled 0x1A.
          */
         len = (cnt > xmodem_size - len) ? (xmodem_size - len) : len;
+        /* Exceeding user's expected size */
+        if (cnt + len > xmodem_size)
+        {
+            res_sta = xymodem_active_cancel(&session);
+            break;
+        }
         // process_data(buff, len);
     }
 #endif
@@ -219,7 +228,7 @@ Xmodem_Sender:
         res_sta = xmodem_transmit(&session, buff, len);
     }
 #endif
-    
+
 Ymodem_Receiver:
 #if (EXAMPLE_CONFIG & (Y_MODEM | RECEIVER))
     __XYM_LOG__("Y modem receive start!\r\n");
@@ -232,10 +241,10 @@ Ymodem_Receiver:
         {
             /* get a new file struct(custom) */
             decode_file(&file_p[file_num], buff, len);
-			
+
             //++file_num;
 
-            /* If you are using a file system, 
+            /* If you are using a file system,
              * you need to use a file name to open the corresponding file operation handle
              * (eg: f_handle = f_open(file.name) )
              */
@@ -245,26 +254,26 @@ Ymodem_Receiver:
             res_sta = XYM_OK;
             continue;
         }
-        /* Exceeding user's expected size */
-        if (cnt >= file_p[file_num].size)
-        {
-            res_sta = xymodem_active_cancel(&session);
-            break;
-        }
         /* The last package exceeded the preset size,
          * the user can choose whether to intercept the excess part,
          * which is usually filled 0x1A.
          */
         len = (cnt > file_p[file_num].size - len) ? (file_p[file_num].size - len) : len;
+        /* Exceeding user's expected size */
+        if (cnt + len > file_p[file_num].size)
+        {
+            res_sta = xymodem_active_cancel(&session);
+            break;
+        }
         // process_data(buff, len);
         memset(buff, 0, len);
     }
 #endif
 
-Ymodem_Sender: 
+Ymodem_Sender:
 #if (EXAMPLE_CONFIG & (Y_MODEM | SENDER))
     __XYM_LOG__("Y modem send start, file_num = [%d], size = [%d]\r\n", file_num, file_p[file_num].size);
-	file_num = 0;
+    file_num = 0;
     for (ymodem_init(&session); res_sta == XYM_OK; cnt += len)
     {
         if (cnt > 0)
@@ -285,7 +294,7 @@ Ymodem_Sender:
                 /* set a new file struct(custom) */
                 encode_file(&file_p[file_num], buff, len);
 
-                /* If you are using a file system, 
+                /* If you are using a file system,
                 * you need to use a file name to open the corresponding file operation handle
                 * (eg: f_handle = f_open(file.name) )
                 */
